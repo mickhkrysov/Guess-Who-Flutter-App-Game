@@ -125,9 +125,7 @@ class PhotoPickerPage extends StatefulWidget {
 
 class _PhotoPickerPageState extends State<PhotoPickerPage> {
   final ImagePicker _picker = ImagePicker();
-
   final List<Uint8List> _imageBytes = [];
-
   static const int requiredCount = 24;
 
   Future<void> _pickMultiple() async {
@@ -160,7 +158,7 @@ class _PhotoPickerPageState extends State<PhotoPickerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Option 1: Upload 24 Photos'),
+        title: const Text('Upload 24 Photos'),
         actions: [
           IconButton(
             onPressed: _imageBytes.isEmpty ? null : _clear,
@@ -183,16 +181,9 @@ class _PhotoPickerPageState extends State<PhotoPickerPage> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _canFinish ? () => Navigator.pop(context, true) : null,
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('Done'),
-                  ),
-                ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -242,8 +233,13 @@ class _PhotoPickerPageState extends State<PhotoPickerPage> {
                       },
                     ),
             ),
-            const SizedBox(height: 6),
-            const Text('Tip: long-press an image to remove it.'),
+            const SizedBox(height: 5),
+            ElevatedButton.icon(
+                    onPressed: _canFinish ? () => Navigator.pop(context, true) : null,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Done'),
+                  ),
+              const Text('Tip: long-press an image to remove it.'),
           ],
         ),
       ),
@@ -260,14 +256,21 @@ class OptionTwoPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Cat mode')),
       body: Center(
-        child: ElevatedButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const PageThree()),
-            );
-          },
-          child: const Text('Next'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset('assets/cats/1.jpeg', width: 200, height: 200, fit: BoxFit.cover),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PageThree()),
+                );
+              },
+              child: const Text('Next'),
+            ),
+          ],
         ),
       ),
     );
@@ -282,8 +285,23 @@ class OptionThreePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Classic mode')),
-      body: const Center(
-        child: Text('Just a characters'),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Just a characters'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PageThree()),
+                );
+              },
+              child: const Text('Next'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -302,7 +320,7 @@ class PageThree extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('This is Page 3'),
-            const SizedBox(height: 16),
+            const SizedBox(height: 30),
             ElevatedButton(
               onPressed: () {
                 // Goes back to the first page by removing all routes above it
