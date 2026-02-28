@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 void main() => runApp(const MyApp());
 
@@ -53,14 +53,12 @@ class PageTwo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget optionCard({
-      required IconData icon,
       required String title,
       required String subtitle,
       required VoidCallback onTap,
     }) {
       return Card(
         child: ListTile(
-          leading: Icon(icon, size: 32),
           title: Text(title),
           subtitle: Text(subtitle),
           trailing: const Icon(Icons.chevron_right),
@@ -76,7 +74,6 @@ class PageTwo extends StatelessWidget {
         child: Column(
           children: [
             optionCard(
-              icon: Icons.photo_library_outlined,
               title: 'Load Your Photos',
               subtitle: 'Pick images from your gallery',
               onTap: () {
@@ -87,7 +84,6 @@ class PageTwo extends StatelessWidget {
               },
             ),
             optionCard(
-              icon: Icons.list_alt_outlined,
               title: 'Option 1',
               subtitle: 'classic hehe',
               onTap: () {
@@ -98,9 +94,8 @@ class PageTwo extends StatelessWidget {
               },
             ),
             optionCard(
-              icon: Icons.settings_outlined,
-              title: 'Option 2',
-              subtitle: 'another variant of the characters that you can try and guess',
+              title: 'Option 2: cat variant',
+              subtitle: 'guess a cat',
               onTap: () {
                 Navigator.push(
                   context,
@@ -130,37 +125,48 @@ class PhotoPickerPage extends StatefulWidget {
 
 class _PhotoPickerPageState extends State<PhotoPickerPage> {
   final ImagePicker _picker = ImagePicker();
-  final List<XFile> _images = [];
 
-  Future<void> _pickSingle() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() => _images.add(image));
-    }
-  }
+  final List<Uint8List> _imageBytes = [];
+
+  static const int requiredCount = 24;
 
   Future<void> _pickMultiple() async {
-    final List<XFile> images = await _picker.pickMultiImage();
-    if (images.isNotEmpty) {
-      setState(() => _images.addAll(images));
+    final picked = await _picker.pickMultiImage();
+    if (picked.isEmpty) return;
+
+    // Read bytes for each picked file
+    final newBytes = <Uint8List>[];
+    for (final x in picked) {
+      if (_imageBytes.length + newBytes.length >= requiredCount) break;
+      newBytes.add(await x.readAsBytes());
     }
+
+    setState(() {
+      _imageBytes.addAll(newBytes);
+
+      // Safety cap at 24
+      if (_imageBytes.length > requiredCount) {
+        _imageBytes.removeRange(requiredCount, _imageBytes.length);
+      }
+    });
   }
 
-  void _clear() {
-    setState(() => _images.clear());
-  }
+  void _removeAt(int index) => setState(() => _imageBytes.removeAt(index));
+  void _clear() => setState(() => _imageBytes.clear());
+
+  bool get _canFinish => _imageBytes.length == requiredCount;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Load Photos'),
+        title: const Text('Option 1: Upload 24 Photos'),
         actions: [
           IconButton(
-            onPressed: _images.isEmpty ? null : _clear,
+            onPressed: _imageBytes.isEmpty ? null : _clear,
             icon: const Icon(Icons.delete_outline),
             tooltip: 'Clear',
-          ),
+          )
         ],
       ),
       body: Padding(
@@ -171,44 +177,73 @@ class _PhotoPickerPageState extends State<PhotoPickerPage> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _pickSingle,
-                    icon: const Icon(Icons.add_photo_alternate_outlined),
-                    label: const Text('Pick 1 Photo'),
+                    onPressed: _imageBytes.length >= requiredCount ? null : _pickMultiple,
+                    icon: const Icon(Icons.collections_outlined),
+                    label: const Text('Pick Photos'),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _pickMultiple,
-                    icon: const Icon(Icons.collections_outlined),
-                    label: const Text('Pick Multiple'),
+                    onPressed: _canFinish ? () => Navigator.pop(context, true) : null,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Done'),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Selected: ${_imageBytes.length}/$requiredCount',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 8),
             Expanded(
-              child: _images.isEmpty
-                  ? const Center(
-                      child: Text('No photos selected yet.'),
-                    )
+              child: _imageBytes.isEmpty
+                  ? const Center(child: Text('Pick photos until you reach 24.'))
                   : GridView.builder(
-                      itemCount: _images.length,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
+                      itemCount: _imageBytes.length,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 3,
                         crossAxisSpacing: 8,
                         mainAxisSpacing: 8,
                       ),
                       itemBuilder: (context, index) {
-                        final file = File(_images[index].path);
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.file(file, fit: BoxFit.cover),
+                        return GestureDetector(
+                          onLongPress: () => _removeAt(index),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.memory(
+                                  _imageBytes[index],
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              Positioned(
+                                right: 6,
+                                top: 6,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(Icons.close, size: 16, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
                         );
                       },
                     ),
             ),
+            const SizedBox(height: 6),
+            const Text('Tip: long-press an image to remove it.'),
           ],
         ),
       ),
@@ -216,14 +251,14 @@ class _PhotoPickerPageState extends State<PhotoPickerPage> {
   }
 }
 
-//Option
+//Option 2: Guess A cat
 class OptionTwoPage extends StatelessWidget {
   const OptionTwoPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Option 2')),
+      appBar: AppBar(title: const Text('Cat mode')),
       body: Center(
         child: ElevatedButton(
           onPressed: () {
@@ -232,23 +267,23 @@ class OptionTwoPage extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const PageThree()),
             );
           },
-          child: const Text('Continue to Page 3'),
+          child: const Text('Next'),
         ),
       ),
     );
   }
 }
 
-// Option
+// Option 3
 class OptionThreePage extends StatelessWidget {
   const OptionThreePage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Option 3')),
+      appBar: AppBar(title: const Text('Classic mode')),
       body: const Center(
-        child: Text('Id like to top a big, hairy, and beefy muscular man so he would whimper when i would touch him'),
+        child: Text('Just a characters'),
       ),
     );
   }
