@@ -1,6 +1,6 @@
 # guess_who
 
-A new Flutter project.
+Flutter project to play "guess who" game with your friends
 
 ## Getting Started
 
