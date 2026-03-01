@@ -1,7 +1,26 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
+
 void main() => runApp(const MyApp());
+
+/// This is what an option returns back to Page 2.
+/// Page 2 then passes it to Page 3 to display the images.
+class OptionResult {
+  final String optionName;
+
+  // For gallery-picked photos (Web + Mobile): store bytes
+  final List<Uint8List>? pickedImages;
+
+  // For bundled assets (Image.asset): store asset paths
+  final List<String>? assetPaths;
+
+  const OptionResult({
+    required this.optionName,
+    this.pickedImages,
+    this.assetPaths,
+  });
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -17,7 +36,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-//             PAGE 1 == Willkommen,Welcome,Bienvenue, in Cabaret, au Cabaret!!!!!!
+// PAGE 1
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
@@ -46,9 +65,27 @@ class HomePage extends StatelessWidget {
   }
 }
 
-//              PAGE 2 == Options Page
-class PageTwo extends StatelessWidget {
+// PAGE 2 (locks Page 3 until an option is completed)
+class PageTwo extends StatefulWidget {
   const PageTwo({super.key});
+
+  @override
+  State<PageTwo> createState() => _PageTwoState();
+}
+
+class _PageTwoState extends State<PageTwo> {
+  OptionResult? _result;
+
+  Future<void> _openOption(Widget optionPage) async {
+    final res = await Navigator.push<OptionResult>(
+      context,
+      MaterialPageRoute(builder: (_) => optionPage),
+    );
+
+    if (res != null) {
+      setState(() => _result = res);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,35 +112,45 @@ class PageTwo extends StatelessWidget {
           children: [
             optionCard(
               title: 'Load Your Photos',
-              subtitle: 'Pick images from your gallery',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PhotoPickerPage()),
-                );
-              },
+              subtitle: 'Pick EXACTLY 24 images (unlocks Page 3)',
+              onTap: () => _openOption(const PhotoPickerPage()),
             ),
             optionCard(
               title: 'Option 1',
-              subtitle: 'classic hehe',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const OptionTwoPage()),
-                );
-              },
+              subtitle: 'classic hehe (2 cat images)',
+              onTap: () => _openOption(const OptionTwoPage()),
             ),
             optionCard(
               title: 'Option 2: cat variant',
-              subtitle: 'guess a cat',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const OptionThreePage()),
-                );
-              },
+              subtitle: 'guess a cat (placeholder)',
+              onTap: () => _openOption(const OptionThreePage()),
             ),
+
+            const SizedBox(height: 12),
+            Text(
+              _result == null
+                  ? 'You must complete ONE option to unlock Page 3.'
+                  : 'Completed: ${_result!.optionName}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+
             const Spacer(),
+
+            ElevatedButton(
+              onPressed: _result == null
+                  ? null
+                  : () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PageThree(result: _result!),
+                        ),
+                      );
+                    },
+              child: const Text('Go to Page 3'),
+            ),
+
+            const SizedBox(height: 8),
             OutlinedButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Back to Page 1'),
@@ -115,7 +162,7 @@ class PageTwo extends StatelessWidget {
   }
 }
 
-//          OPTION 1 PAGE: PHOTO PICKER 
+// OPTION 1: PHOTO PICKER (must pick 24)
 class PhotoPickerPage extends StatefulWidget {
   const PhotoPickerPage({super.key});
 
@@ -125,14 +172,17 @@ class PhotoPickerPage extends StatefulWidget {
 
 class _PhotoPickerPageState extends State<PhotoPickerPage> {
   final ImagePicker _picker = ImagePicker();
+
+  // Store image BYTES so it works on Web + Mobile
   final List<Uint8List> _imageBytes = [];
+
   static const int requiredCount = 24;
 
   Future<void> _pickMultiple() async {
     final picked = await _picker.pickMultiImage();
     if (picked.isEmpty) return;
 
-    // Read bytes for each picked file
+    // Read bytes (cap at 24)
     final newBytes = <Uint8List>[];
     for (final x in picked) {
       if (_imageBytes.length + newBytes.length >= requiredCount) break;
@@ -141,8 +191,6 @@ class _PhotoPickerPageState extends State<PhotoPickerPage> {
 
     setState(() {
       _imageBytes.addAll(newBytes);
-
-      // Safety cap at 24
       if (_imageBytes.length > requiredCount) {
         _imageBytes.removeRange(requiredCount, _imageBytes.length);
       }
@@ -164,7 +212,7 @@ class _PhotoPickerPageState extends State<PhotoPickerPage> {
             onPressed: _imageBytes.isEmpty ? null : _clear,
             icon: const Icon(Icons.delete_outline),
             tooltip: 'Clear',
-          )
+          ),
         ],
       ),
       body: Padding(
@@ -175,15 +223,35 @@ class _PhotoPickerPageState extends State<PhotoPickerPage> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _imageBytes.length >= requiredCount ? null : _pickMultiple,
+                    onPressed:
+                        _imageBytes.length >= requiredCount ? null : _pickMultiple,
                     icon: const Icon(Icons.collections_outlined),
                     label: const Text('Pick Photos'),
                   ),
                 ),
                 const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _canFinish
+                        ? () {
+                            // Return images to Page 2
+                            Navigator.pop(
+                              context,
+                              OptionResult(
+                                optionName: 'Your Photos (24)',
+                                pickedImages:
+                                    List<Uint8List>.from(_imageBytes),
+                              ),
+                            );
+                          }
+                        : null,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Done'),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -197,7 +265,8 @@ class _PhotoPickerPageState extends State<PhotoPickerPage> {
                   ? const Center(child: Text('Pick photos until you reach 24.'))
                   : GridView.builder(
                       itemCount: _imageBytes.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 3,
                         crossAxisSpacing: 8,
                         mainAxisSpacing: 8,
@@ -205,41 +274,19 @@ class _PhotoPickerPageState extends State<PhotoPickerPage> {
                       itemBuilder: (context, index) {
                         return GestureDetector(
                           onLongPress: () => _removeAt(index),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Image.memory(
-                                  _imageBytes[index],
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              Positioned(
-                                right: 6,
-                                top: 6,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black54,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(Icons.close, size: 16, color: Colors.white),
-                                ),
-                              ),
-                            ],
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.memory(
+                              _imageBytes[index],
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         );
                       },
                     ),
             ),
-            const SizedBox(height: 5),
-            ElevatedButton.icon(
-                    onPressed: _canFinish ? () => Navigator.pop(context, true) : null,
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('Done'),
-                  ),
-              const Text('Tip: long-press an image to remove it.'),
+            const SizedBox(height: 6),
+            const Text('Tip: long-press an image to remove it.'),
           ],
         ),
       ),
@@ -247,9 +294,14 @@ class _PhotoPickerPageState extends State<PhotoPickerPage> {
   }
 }
 
-//Option 2: Guess A cat
+// OPTION 2 (Cat mode) - returns asset images
 class OptionTwoPage extends StatelessWidget {
   const OptionTwoPage({super.key});
+
+  static const List<String> catAssets = [
+    'assets/cats/1.jpeg',
+    'assets/cats/2.jpeg',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -259,16 +311,38 @@ class OptionTwoPage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset('assets/cats/1.jpeg', width: 200, height: 200, fit: BoxFit.cover),
+            const Text('Cat mode, guess a meme cat'),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (int i = 0; i < catAssets.length; i++) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.asset(
+                      catAssets[i],
+                      width: 260,
+                      height: 260,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  if (i != catAssets.length - 1) const SizedBox(width: 20),
+                ],
+              ],
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                Navigator.push(
+                // Return assets to Page 2
+                Navigator.pop(
                   context,
-                  MaterialPageRoute(builder: (_) => const PageThree()),
+                  const OptionResult(
+                    optionName: 'Cat mode',
+                    assetPaths: catAssets,
+                  ),
                 );
               },
-              child: const Text('Next'),
+              child: const Text('Done'),
             ),
           ],
         ),
@@ -277,7 +351,7 @@ class OptionTwoPage extends StatelessWidget {
   }
 }
 
-// Option 3
+// OPTION 3 (placeholder) - add your own assets if you want
 class OptionThreePage extends StatelessWidget {
   const OptionThreePage({super.key});
 
@@ -289,16 +363,20 @@ class OptionThreePage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Just a characters'),
+            const Text('Just a characters (add assets if you want)'),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                Navigator.push(
+                // Return something (currently no images)
+                Navigator.pop(
                   context,
-                  MaterialPageRoute(builder: (_) => const PageThree()),
+                  const OptionResult(
+                    optionName: 'Classic mode',
+                    assetPaths: [],
+                  ),
                 );
               },
-              child: const Text('Next'),
+              child: const Text('Done'),
             ),
           ],
         ),
@@ -307,28 +385,62 @@ class OptionThreePage extends StatelessWidget {
   }
 }
 
-//                  PAGE 3== THE GAME itself
+// PAGE 3 (displays images from the chosen option)
 class PageThree extends StatelessWidget {
-  const PageThree({super.key});
+  final OptionResult result;
+  const PageThree({super.key, required this.result});
 
   @override
   Widget build(BuildContext context) {
+    final picked = result.pickedImages;
+    final assets = result.assetPaths;
+
+    Widget content;
+
+    if (picked != null && picked.isNotEmpty) {
+      content = GridView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: picked.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+        ),
+        itemBuilder: (_, i) => ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.memory(picked[i], fit: BoxFit.cover),
+        ),
+      );
+    } else if (assets != null && assets.isNotEmpty) {
+      content = GridView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: assets.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemBuilder: (_, i) => ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.asset(assets[i], fit: BoxFit.cover),
+        ),
+      );
+    } else {
+      content = const Center(
+        child: Text('No images were provided by this option.'),
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('THE GAME')),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('This is Page 3'),
-            const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: () {
-                // Goes back to the first page by removing all routes above it
-                Navigator.popUntil(context, (route) => route.isFirst);
-              },
-              child: const Text('EXIT'),
-            ),
-          ],
+      appBar: AppBar(title: Text('Page 3: ${result.optionName}')),
+      body: content,
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: ElevatedButton(
+            onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+            child: const Text('EXIT'),
+          ),
         ),
       ),
     );
